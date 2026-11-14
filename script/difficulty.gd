@@ -16,4 +16,6 @@ func damage_multiplier() -> float:
 	return [0.35, 1.0, 1.8][current_level]
 
 func attack_interval() -> float:
-	return [1.45, 1.0, 0.62][current_level]
+	# Keep the hardest swing interval at the killer's 0.8s animation recovery time.
+	# This prevents attack animations from restarting before the previous cut finishes.
+	return [1.5, 1.0, 0.8][current_level]
