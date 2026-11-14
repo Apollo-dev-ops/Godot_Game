@@ -54,6 +54,9 @@ var random := RandomNumberGenerator.new()
 @export var attack_range := 1.8
 @export var attack_cooldown := 1.0
 @export var replacement_body_scale := 0.025
+@export var chainsaw_scale := 0.05
+@export var chainsaw_position := Vector3(0.55, 1.05, 0.25)
+@export var chainsaw_rotation_degrees := Vector3(0.0, 0.0, -90.0)
 
 @onready var imported_animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
@@ -67,6 +70,7 @@ var attack_timer := 0.0
 var dead := false
 var _health_bar: ProgressBar
 var _body_asset: Node3D
+var _chainsaw_asset: Node3D
 
 
 
@@ -160,6 +164,9 @@ func _play_attack_animation() -> void:
 		imported_animation_player.play(&"attacking")
 
 func _try_add_replacement_body() -> void:
+	var killer_visuals := Node3D.new()
+	killer_visuals.name = "KillerReplacementVisuals"
+	add_child(killer_visuals)
 	var mesh_resource := load("res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.stl")
 	if mesh_resource is Mesh:
 		_body_asset = MeshInstance3D.new()
@@ -168,7 +175,18 @@ func _try_add_replacement_body() -> void:
 		_body_asset.scale = Vector3.ONE * replacement_body_scale
 		_body_asset.position.y = 0.15
 		_body_asset.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		add_child(_body_asset)
+		killer_visuals.add_child(_body_asset)
+
+	var chainsaw_scene := load("res://assets/models/enemy/chainsaw/scene.gltf") as PackedScene
+	if chainsaw_scene:
+		_chainsaw_asset = chainsaw_scene.instantiate() as Node3D
+		_chainsaw_asset.name = "RE4RChainsaw"
+		_chainsaw_asset.position = chainsaw_position
+		_chainsaw_asset.rotation_degrees = chainsaw_rotation_degrees
+		_chainsaw_asset.scale = Vector3.ONE * chainsaw_scale
+		killer_visuals.add_child(_chainsaw_asset)
+	else:
+		push_warning("Chainsaw glTF could not be loaded from res://assets/models/enemy/chainsaw/scene.gltf")
 
 func _create_enemy_health_bar() -> void:
 	_health_bar = ProgressBar.new()
