@@ -13,6 +13,7 @@ const ATTACK_DISTANCE := 3.2
 const ATTACK_DAMAGE := 20.0
 const MAX_HEALTH := 100.0
 const TOUCH_LOOK_SENSITIVITY := 0.008
+const UAL_LIBRARY_PATH := "res://assets/animations/UniversalAnimationLibrary/ual_mixamo_animations.tres"
 
 @onready var flashlight_fill: OmniLight3D = $camera_mount/Camera3D/FlashlightFill
 @onready var flashlight: SpotLight3D = $camera_mount/Camera3D/Flashlight
@@ -58,6 +59,7 @@ func _ready() -> void:
 	camera.cull_mask &= ~FIRST_PERSON_HIDDEN_LAYER
 	_set_flashlight_visible(FLASH_BY_DEFAULT)
 	_hide_from_first_person_camera(visuals)
+	_install_universal_animations()
 	key_text.hide()
 	game_over_menu.hide()
 	restart_button.pressed.connect(_on_restart_button_pressed)
@@ -101,6 +103,7 @@ func _physics_process(delta: float) -> void:
 		velocity += get_gravity() * delta
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
 		velocity.y = JUMP_VELOCITY
+		_play_animation(&"ual_jump_start")
 	if Input.is_action_just_pressed("flash"):
 		FLASH_BY_DEFAULT = not FLASH_BY_DEFAULT
 		_set_flashlight_visible(FLASH_BY_DEFAULT)
@@ -114,7 +117,7 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, direction.x * speed, ACCELERATION * delta)
 		velocity.z = move_toward(velocity.z, direction.z * speed, ACCELERATION * delta)
 	else:
-		_play_animation("idle")
+		_play_animation(&"ual_idle")
 		velocity.x = move_toward(velocity.x, 0.0, DECELERATION * delta)
 		velocity.z = move_toward(velocity.z, 0.0, DECELERATION * delta)
 	_update_camera_bob(delta, direction)
@@ -131,6 +134,7 @@ func take_damage(amount: float, _source: Node = null) -> void:
 func _die() -> void:
 	controls_enabled = false
 	velocity = Vector3.ZERO
+	_play_animation(&"ual_death")
 	key_text.hide()
 	if _health_label:
 		_health_label.text = "YOU DIED"
@@ -178,7 +182,7 @@ func _attack_enemy() -> void:
 	if _attack_cooldown > 0.0:
 		return
 	_attack_cooldown = 0.45
-	_play_animation("kick")
+	_play_animation(&"ual_sword_attack")
 	var query := PhysicsRayQueryParameters3D.create(camera.global_position, camera.global_position + (-camera.global_basis.z * ATTACK_DISTANCE))
 	query.exclude = [self]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
@@ -191,11 +195,33 @@ func _attack_enemy() -> void:
 		collider.take_damage(ATTACK_DAMAGE, self)
 
 func _play_movement_animation() -> void:
-	_play_animation("running" if is_running else "walking")
+	_play_animation(&"ual_sprint" if is_running else &"ual_jog")
 
 func _play_animation(animation_name: StringName) -> void:
-	if animation_player.current_animation != animation_name:
+	if animation_player.has_animation(animation_name) and animation_player.current_animation != animation_name:
 		animation_player.play(animation_name)
+
+func _install_universal_animations() -> void:
+	var universal_library := load(UAL_LIBRARY_PATH) as AnimationLibrary
+	if universal_library == null:
+		push_warning("Universal animation library could not be loaded")
+		return
+	var player_library := animation_player.get_animation_library("")
+	var aliases := {
+		"ual_idle": "Idle",
+		"ual_jog": "Jog_Fwd",
+		"ual_sprint": "Sprint",
+		"ual_walk": "Walk",
+		"ual_jump_start": "Jump_Start",
+		"ual_jump_land": "Jump_Land",
+		"ual_sword_attack": "Sword_Attack",
+		"ual_death": "Death01",
+		"ual_interact": "Interact"
+	}
+	for alias in aliases:
+		var source_name: StringName = aliases[alias]
+		if universal_library.has_animation(source_name) and not player_library.has_animation(alias):
+			player_library.add_animation(alias, universal_library.get_animation(source_name).duplicate())
 
 func _update_camera_bob(delta: float, direction: Vector3) -> void:
 	var is_moving := direction.length() > 0.1 and is_on_floor()
