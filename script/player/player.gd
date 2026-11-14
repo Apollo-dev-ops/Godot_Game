@@ -8,6 +8,7 @@ const DECELERATION := 18.0
 const MIN_LOOK_ANGLE := deg_to_rad(-60.0)
 const MAX_LOOK_ANGLE := deg_to_rad(70.0)
 const FIRST_PERSON_HIDDEN_LAYER := 2
+const KILLER_MINIMAP_HIDDEN_LAYER := 4
 const INTERACTION_DISTANCE := 3.2
 const ATTACK_DISTANCE := 3.2
 const ATTACK_DAMAGE := 20.0
@@ -331,6 +332,7 @@ func _create_minimap() -> void:
 	_minimap_camera.rotation_degrees = Vector3(-90, 0, 0)
 	_minimap_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	_minimap_camera.size = 32.0
+	_minimap_camera.cull_mask = 0xFFFFFFFF ^ (1 << (KILLER_MINIMAP_HIDDEN_LAYER - 1))
 	_minimap_camera.current = true
 	_minimap_viewport.add_child(_minimap_camera)
 	var map := TextureRect.new()

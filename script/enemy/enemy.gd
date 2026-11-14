@@ -7,6 +7,8 @@ enum EnemyState {
 	SEARCH,
 }
 
+const KILLER_MINIMAP_HIDDEN_LAYER := 4
+
 @export_group("References")
 @export var player_path: NodePath
 
@@ -258,6 +260,7 @@ func _try_add_replacement_body() -> void:
 		_body_asset.scale = Vector3.ONE * replacement_body_scale
 		_body_asset.position.y = 0.15
 		killer_visuals.add_child(_body_asset)
+		_set_visual_layer(_body_asset, KILLER_MINIMAP_HIDDEN_LAYER)
 		_body_base_position = _body_asset.position
 		_body_base_rotation_degrees = _body_asset.rotation_degrees
 	else:
@@ -271,8 +274,15 @@ func _try_add_replacement_body() -> void:
 		_chainsaw_asset.rotation_degrees = chainsaw_rotation_degrees
 		_chainsaw_asset.scale = Vector3.ONE * chainsaw_scale
 		killer_visuals.add_child(_chainsaw_asset)
+		_set_visual_layer(_chainsaw_asset, KILLER_MINIMAP_HIDDEN_LAYER)
 	else:
 		push_warning("Chainsaw glTF could not be loaded from res://assets/models/enemy/chainsaw/scene.gltf")
+
+func _set_visual_layer(node: Node, layer: int) -> void:
+	if node is VisualInstance3D:
+		(node as VisualInstance3D).layers = 1 << (layer - 1)
+	for child in node.get_children():
+		_set_visual_layer(child, layer)
 
 func _create_enemy_health_bar() -> void:
 	_health_bar = ProgressBar.new()
