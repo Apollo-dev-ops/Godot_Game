@@ -109,7 +109,7 @@ func _move_tip(new_position: Vector2) -> void:
 
 func _is_point_inside_joystick_area(point: Vector2) -> bool:
 	if joystick_mode == Joystick_mode.DYNAMIC and appear_under_finger:
-		return point.x <= get_viewport_rect().size.x * 0.48
+		return point.x <= get_viewport_rect().size.x * 0.46
 	var x: bool = point.x >= global_position.x and point.x <= global_position.x + (size.x * get_global_transform_with_canvas().get_scale().x)
 	var y: bool = point.y >= global_position.y and point.y <= global_position.y + (size.y * get_global_transform_with_canvas().get_scale().y)
 	return x and y

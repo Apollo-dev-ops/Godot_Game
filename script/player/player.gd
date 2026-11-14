@@ -46,6 +46,7 @@ var _health_bar: ProgressBar
 var _health_label: Label
 var _interact_button: Button
 var _attack_button: Button
+var _flash_button: Button
 var _difficulty_button: Button
 var _minimap_viewport: SubViewport
 var _minimap_camera: Camera3D
@@ -71,7 +72,7 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventScreenTouch:
-		if event.position.x > get_viewport().get_visible_rect().size.x * 0.42:
+		if event.position.x > get_viewport().get_visible_rect().size.x * 0.50:
 			if event.pressed and touch_look_index == -1:
 				touch_look_index = event.index
 				last_touch_look_position = event.position
@@ -159,7 +160,9 @@ func _handle_interaction() -> void:
 	_interaction_target = null
 	if not hit.is_empty():
 		var collider := hit.get("collider") as Node
-		if collider and collider.has_method("interact"):
+		while collider and not collider.has_method("interact"):
+			collider = collider.get_parent()
+		if collider:
 			_interaction_target = collider
 	if _interaction_target:
 		key_text.text = "TAP INTERACT  •  %s" % _interaction_target.name
@@ -175,6 +178,7 @@ func _attack_enemy() -> void:
 	if _attack_cooldown > 0.0:
 		return
 	_attack_cooldown = 0.45
+	_play_animation("kick")
 	var query := PhysicsRayQueryParameters3D.create(camera.global_position, camera.global_position + (-camera.global_basis.z * ATTACK_DISTANCE))
 	query.exclude = [self]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
@@ -223,24 +227,46 @@ func _create_mobile_hud() -> void:
 	_interact_button.visible = false
 	_attack_button = _make_button("ATTACK", Vector2(-205, -280), Vector2(180, 70))
 	_attack_button.pressed.connect(_attack_enemy)
-	_difficulty_button = _make_button("DIFFICULTY: NORMAL", Vector2(18, 84), Vector2(220, 48))
+	var difficulty := get_node_or_null("/root/Difficulty")
+	_difficulty_button = _make_button("DIFFICULTY: %s" % (difficulty.display_name() if difficulty else "NORMAL"), Vector2(18, 84), Vector2(220, 48))
 	_difficulty_button.pressed.connect(_cycle_difficulty)
+	_flash_button = _make_top_left_button("FLASHLIGHT", Vector2(18, 142), Vector2(220, 52))
+	_flash_button.pressed.connect(_toggle_flashlight)
 	_create_minimap()
 
 func _make_button(label: String, offset: Vector2, button_size: Vector2) -> Button:
 	var button := Button.new()
 	button.text = label
-	button.position = Vector2(get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y) + offset
-	button.size = button_size
 	button.anchor_left = 1.0
 	button.anchor_top = 1.0
 	button.anchor_right = 1.0
 	button.anchor_bottom = 1.0
+	button.offset_left = offset.x
+	button.offset_top = offset.y
+	button.offset_right = offset.x + button_size.x
+	button.offset_bottom = offset.y + button_size.y
 	button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	button.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	button.z_index = 20
 	button.add_theme_font_size_override("font_size", 20)
 	$CanvasLayer.add_child(button)
 	return button
+
+func _make_top_left_button(label: String, position: Vector2, button_size: Vector2) -> Button:
+	var button := Button.new()
+	button.text = label
+	button.position = position
+	button.size = button_size
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	button.z_index = 20
+	button.add_theme_font_size_override("font_size", 18)
+	$CanvasLayer.add_child(button)
+	return button
+
+func _toggle_flashlight() -> void:
+	FLASH_BY_DEFAULT = not FLASH_BY_DEFAULT
+	_set_flashlight_visible(FLASH_BY_DEFAULT)
 
 func _on_interact_pressed() -> void:
 	if _interaction_target and is_instance_valid(_interaction_target):
@@ -262,7 +288,7 @@ func _update_health_hud() -> void:
 func _create_minimap() -> void:
 	_minimap_viewport = SubViewport.new()
 	_minimap_viewport.name = "MinimapViewport"
-	_minimap_viewport.size = Vector2i(220, 220)
+	_minimap_viewport.size = Vector2i(180, 180)
 	_minimap_viewport.transparent_bg = false
 	_minimap_viewport.world_3d = get_viewport().world_3d
 	$CanvasLayer.add_child(_minimap_viewport)
@@ -276,8 +302,8 @@ func _create_minimap() -> void:
 	var map := TextureRect.new()
 	map.name = "Minimap"
 	map.texture = _minimap_viewport.get_texture()
-	map.position = Vector2(-238, -238)
-	map.size = Vector2(220, 220)
+	map.position = Vector2(-198, -198)
+	map.size = Vector2(180, 180)
 	map.anchor_left = 1.0
 	map.anchor_top = 1.0
 	map.anchor_right = 1.0

@@ -71,6 +71,7 @@ var dead := false
 var _health_bar: ProgressBar
 var _body_asset: Node3D
 var _chainsaw_asset: Node3D
+var _attack_animation_index := 1
 
 
 
@@ -136,7 +137,7 @@ func _try_attack_player() -> bool:
 		if difficulty:
 			multiplier = difficulty.damage_multiplier()
 		player.take_damage(chainsaw_damage * multiplier, self)
-		attack_timer = attack_cooldown
+		attack_timer = difficulty.attack_interval() if difficulty else attack_cooldown
 		_play_attack_animation()
 	return true
 
@@ -160,22 +161,47 @@ func _die() -> void:
 		player.enemy_defeated()
 
 func _play_attack_animation() -> void:
-	if imported_animation_player and imported_animation_player.has_animation(&"attacking"):
-		imported_animation_player.play(&"attacking")
+	if imported_animation_player == null:
+		return
+	var animation_name := StringName("_Attack %d" % _attack_animation_index)
+	_attack_animation_index = (_attack_animation_index % 5) + 1
+	if not imported_animation_player.has_animation(animation_name):
+		_play_chainsaw_swing()
+		return
+	animation_tree.active = false
+	imported_animation_player.play(animation_name)
+	_play_chainsaw_swing()
+	get_tree().create_timer(0.8).timeout.connect(_resume_locomotion_animation)
+
+func _play_chainsaw_swing() -> void:
+	if _chainsaw_asset == null:
+		return
+	var swing := create_tween()
+	swing.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	swing.tween_property(_chainsaw_asset, "rotation_degrees", chainsaw_rotation_degrees + Vector3(-38.0, 0.0, 0.0), 0.16)
+	swing.tween_property(_chainsaw_asset, "rotation_degrees", chainsaw_rotation_degrees, 0.24)
+
+func _resume_locomotion_animation() -> void:
+	if not dead and is_instance_valid(animation_tree):
+		animation_tree.active = true
 
 func _try_add_replacement_body() -> void:
 	var killer_visuals := Node3D.new()
 	killer_visuals.name = "KillerReplacementVisuals"
 	add_child(killer_visuals)
-	var mesh_resource := load("res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.stl")
-	if mesh_resource is Mesh:
-		_body_asset = MeshInstance3D.new()
+	for legacy_path in ["Skeleton3D/body2_model0_smd", "Skeleton3D/full"]:
+		var legacy_mesh := get_node_or_null(legacy_path) as VisualInstance3D
+		if legacy_mesh:
+			legacy_mesh.visible = false
+	var body_scene := load("res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.glb") as PackedScene
+	if body_scene:
+		_body_asset = body_scene.instantiate() as Node3D
 		_body_asset.name = "VictorGideonBody"
-		_body_asset.mesh = mesh_resource
 		_body_asset.scale = Vector3.ONE * replacement_body_scale
 		_body_asset.position.y = 0.15
-		_body_asset.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		killer_visuals.add_child(_body_asset)
+	else:
+		push_warning("Victor Gideon GLB could not be loaded from res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.glb")
 
 	var chainsaw_scene := load("res://assets/models/enemy/chainsaw/scene.gltf") as PackedScene
 	if chainsaw_scene:
