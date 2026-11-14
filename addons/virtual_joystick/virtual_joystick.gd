@@ -24,6 +24,8 @@ enum Joystick_mode {
 
 ## If the joystick stays in the same position or appears on the touched position when touch is started
 @export var joystick_mode := Joystick_mode.FIXED
+## Dynamic joysticks can be activated anywhere in their half-screen touch zone.
+@export var appear_under_finger := true
 
 enum Visibility_mode {
 	ALWAYS, ## Always visible
@@ -106,6 +108,8 @@ func _move_tip(new_position: Vector2) -> void:
 	_tip.global_position = new_position - _tip.pivot_offset * _base.get_global_transform_with_canvas().get_scale()
 
 func _is_point_inside_joystick_area(point: Vector2) -> bool:
+	if joystick_mode == Joystick_mode.DYNAMIC and appear_under_finger:
+		return point.x <= get_viewport_rect().size.x * 0.48
 	var x: bool = point.x >= global_position.x and point.x <= global_position.x + (size.x * get_global_transform_with_canvas().get_scale().x)
 	var y: bool = point.y >= global_position.y and point.y <= global_position.y + (size.y * get_global_transform_with_canvas().get_scale().y)
 	return x and y

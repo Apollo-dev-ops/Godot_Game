@@ -48,6 +48,12 @@ var random := RandomNumberGenerator.new()
 
 @export_group("Jumpscare")
 @export var catch_distance := 1.35
+@export_group("Combat")
+@export_range(1.0, 500.0, 1.0) var max_health := 150.0
+@export var chainsaw_damage := 12.0
+@export var attack_range := 1.8
+@export var attack_cooldown := 1.0
+@export var replacement_body_scale := 0.025
 
 @onready var imported_animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
@@ -56,6 +62,11 @@ var random := RandomNumberGenerator.new()
 
 
 var has_caught_player := false
+var health := 150.0
+var attack_timer := 0.0
+var dead := false
+var _health_bar: ProgressBar
+var _body_asset: Node3D
 
 
 
@@ -63,6 +74,9 @@ var has_caught_player := false
 
 func _ready() -> void:
 	random.randomize()
+	health = max_health
+	_try_add_replacement_body()
+	_create_enemy_health_bar()
 
 	player = get_node_or_null(player_path) as Node3D
 	if player == null:
@@ -81,8 +95,11 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if dead:
+		return
+	attack_timer = maxf(0.0, attack_timer - delta)
 	_apply_gravity(delta)
-	if _try_catch_player():
+	if _try_attack_player():
 		return
 
 	_update_player_detection(delta)
@@ -98,50 +115,71 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
-func _try_catch_player() -> bool:
-	if has_caught_player or player == null:
-		return has_caught_player
+func _try_attack_player() -> bool:
+	if player == null:
+		return false
 
 	var flat_offset := player.global_position - global_position
 	flat_offset.y = 0.0
 
-	if flat_offset.length() > catch_distance:
+	if flat_offset.length() > attack_range:
 		return false
-
-	_catch_player()
+	_stop_horizontal_movement()
+	_turn_toward_direction(flat_offset.normalized(), get_physics_process_delta_time())
+	if attack_timer <= 0.0 and player.has_method("take_damage"):
+		var multiplier := 1.0
+		var difficulty := get_node_or_null("/root/Difficulty")
+		if difficulty:
+			multiplier = difficulty.damage_multiplier()
+		player.take_damage(chainsaw_damage * multiplier, self)
+		attack_timer = attack_cooldown
+		_play_attack_animation()
 	return true
 
-func _catch_player() -> void:
-	if has_caught_player:
+func take_damage(amount: float, _source: Node = null) -> void:
+	if dead or amount <= 0.0:
 		return
+	health = clampf(health - amount, 0.0, max_health)
+	if _health_bar:
+		_health_bar.value = health
+	if health <= 0.0:
+		_die()
 
-	has_caught_player = true
-	_stop_horizontal_movement()
+func _die() -> void:
+	dead = true
 	velocity = Vector3.ZERO
-	navigation_agent.target_position = global_position
-
-	# Face the player for the final scare pose.
-	var look_target := player.global_position
-	look_target.y = global_position.y
-	if global_position.distance_squared_to(look_target) > 0.0001:
-		look_at(look_target, Vector3.UP)
-		rotation_degrees.z = -11.0
-
-	# Stop the looping walk animation before the custom lunge.
-	animation_tree.active = false
-	imported_animation_player.stop()
-
-	# Prevent the two CharacterBody3D capsules from pushing each other.
-	collision_shape.set_deferred(&"disabled", true)
-
-	# Start both sides of the jumpscare during the same frame.
-	if player.has_method("start_jumpscare"):
-		player.start_jumpscare(self)
-	else:
-		push_error("The player does not implement start_jumpscare(enemy).")
-
-	jumpscare_animation_player.play(&"jumpscare_lunge")
 	set_physics_process(false)
+	navigation_agent.target_position = global_position
+	if _health_bar:
+		_health_bar.visible = false
+	if player and player.has_method("enemy_defeated"):
+		player.enemy_defeated()
+
+func _play_attack_animation() -> void:
+	if imported_animation_player and imported_animation_player.has_animation(&"attacking"):
+		imported_animation_player.play(&"attacking")
+
+func _try_add_replacement_body() -> void:
+	var mesh_resource := load("res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.stl")
+	if mesh_resource is Mesh:
+		_body_asset = MeshInstance3D.new()
+		_body_asset.name = "VictorGideonBody"
+		_body_asset.mesh = mesh_resource
+		_body_asset.scale = Vector3.ONE * replacement_body_scale
+		_body_asset.position.y = 0.15
+		_body_asset.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		add_child(_body_asset)
+
+func _create_enemy_health_bar() -> void:
+	_health_bar = ProgressBar.new()
+	_health_bar.name = "EnemyHealthBar"
+	_health_bar.max_value = max_health
+	_health_bar.value = health
+	_health_bar.show_percentage = false
+	_health_bar.size = Vector2(180, 16)
+	_health_bar.position = Vector2(-90, -110)
+	_health_bar.visible = false
+	add_child(_health_bar)
 
 
 
@@ -252,7 +290,7 @@ func _update_patrol(delta: float) -> void:
 			_choose_random_patrol_point()
 		return
 
-	_move_along_navigation_path(walking_speed, delta)
+	_move_along_navigation_path(_difficulty_speed(walking_speed), delta)
 
 
 func _update_chase() -> void:
@@ -260,7 +298,7 @@ func _update_chase() -> void:
 	# the short lose_sight_delay memory period.
 	current_destination = last_known_player_position
 	navigation_agent.target_position = last_known_player_position
-	_move_along_navigation_path(chasing_speed, get_physics_process_delta_time())
+	_move_along_navigation_path(_difficulty_speed(chasing_speed), get_physics_process_delta_time())
 
 
 func _update_search(delta: float) -> void:
@@ -279,7 +317,7 @@ func _update_search(delta: float) -> void:
 			_choose_nearby_search_point()
 		return
 
-	_move_along_navigation_path(walking_speed, delta)
+	_move_along_navigation_path(_difficulty_speed(walking_speed), delta)
 
 
 func _move_along_navigation_path(speed: float, delta: float) -> void:
@@ -316,6 +354,12 @@ func _turn_toward_direction(direction: Vector3, delta: float) -> void:
 func _stop_horizontal_movement() -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
+
+func _difficulty_speed(base_speed: float) -> float:
+	var difficulty := get_node_or_null("/root/Difficulty")
+	if difficulty:
+		return base_speed * difficulty.speed_multiplier()
+	return base_speed
 
 
 func _set_destination(destination: Vector3) -> void:
