@@ -58,6 +58,13 @@ var random := RandomNumberGenerator.new()
 @export var chainsaw_position := Vector3(0.55, 1.05, 0.25)
 @export var chainsaw_rotation_degrees := Vector3(0.0, 0.0, -90.0)
 
+@export_group("Procedural Killer Motion")
+@export var procedural_motion_enabled := true
+@export var idle_breath_height := 0.012
+@export var movement_bob_height := 0.035
+@export var movement_sway_degrees := 2.0
+@export var attack_lunge_distance := 0.10
+
 @onready var imported_animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
 @onready var jumpscare_animation_player: AnimationPlayer = $JumpscareAnimationPlayer
@@ -72,6 +79,14 @@ var _health_bar: ProgressBar
 var _body_asset: Node3D
 var _chainsaw_asset: Node3D
 var _attack_animation_index := 1
+var _body_base_position := Vector3.ZERO
+var _body_base_rotation_degrees := Vector3.ZERO
+var _body_motion_time := 0.0
+var _body_attack_offset := Vector3.ZERO
+var _body_attack_rotation_offset := Vector3.ZERO
+var _chainsaw_attack_offset := Vector3.ZERO
+var _body_attack_tween: Tween
+var _chainsaw_attack_tween: Tween
 
 
 
@@ -102,6 +117,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+	_update_procedural_body_motion(delta)
 	attack_timer = maxf(0.0, attack_timer - delta)
 	_apply_gravity(delta)
 	if _try_attack_player():
@@ -161,6 +177,7 @@ func _die() -> void:
 		player.enemy_defeated()
 
 func _play_attack_animation() -> void:
+	_play_procedural_attack_motion()
 	if imported_animation_player == null:
 		return
 	var animation_name := StringName("_Attack %d" % _attack_animation_index)
@@ -176,14 +193,55 @@ func _play_attack_animation() -> void:
 func _play_chainsaw_swing() -> void:
 	if _chainsaw_asset == null:
 		return
-	var swing := create_tween()
-	swing.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	swing.tween_property(_chainsaw_asset, "rotation_degrees", chainsaw_rotation_degrees + Vector3(-38.0, 0.0, 0.0), 0.16)
-	swing.tween_property(_chainsaw_asset, "rotation_degrees", chainsaw_rotation_degrees, 0.24)
+	if _chainsaw_attack_tween and _chainsaw_attack_tween.is_valid():
+		_chainsaw_attack_tween.kill()
+	_chainsaw_attack_offset = Vector3.ZERO
+	_chainsaw_attack_tween = create_tween()
+	_chainsaw_attack_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_chainsaw_attack_tween.tween_property(self, "_chainsaw_attack_offset", Vector3(-52.0, 0.0, 24.0), 0.14)
+	_chainsaw_attack_tween.tween_property(self, "_chainsaw_attack_offset", Vector3(38.0, 0.0, -30.0), 0.16)
+	_chainsaw_attack_tween.tween_property(self, "_chainsaw_attack_offset", Vector3.ZERO, 0.28)
 
 func _resume_locomotion_animation() -> void:
 	if not dead and is_instance_valid(animation_tree):
 		animation_tree.active = true
+
+func _play_procedural_attack_motion() -> void:
+	if not procedural_motion_enabled or _body_asset == null:
+		return
+	if _body_attack_tween and _body_attack_tween.is_valid():
+		_body_attack_tween.kill()
+	_body_attack_offset = Vector3.ZERO
+	_body_attack_rotation_offset = Vector3.ZERO
+	_body_attack_tween = create_tween()
+	_body_attack_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_body_attack_tween.set_parallel(true)
+	_body_attack_tween.tween_property(self, "_body_attack_offset", Vector3(0.0, 0.025, -attack_lunge_distance), 0.14)
+	_body_attack_tween.tween_property(self, "_body_attack_rotation_offset", Vector3(-9.0, -12.0, 14.0), 0.14)
+	_body_attack_tween.chain().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_body_attack_tween.tween_property(self, "_body_attack_offset", Vector3(0.0, 0.0, 0.035), 0.16)
+	_body_attack_tween.tween_property(self, "_body_attack_rotation_offset", Vector3(18.0, 14.0, -20.0), 0.16)
+	_body_attack_tween.chain().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	_body_attack_tween.tween_property(self, "_body_attack_offset", Vector3.ZERO, 0.30)
+	_body_attack_tween.tween_property(self, "_body_attack_rotation_offset", Vector3.ZERO, 0.30)
+
+func _update_procedural_body_motion(delta: float) -> void:
+	if not procedural_motion_enabled or _body_asset == null:
+		return
+	_body_motion_time += delta
+	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
+	var movement_ratio := clampf(horizontal_speed / maxf(chasing_speed, 0.1), 0.0, 1.0)
+	var gait_frequency := lerpf(1.8, 5.5, movement_ratio)
+	var gait_phase := _body_motion_time * gait_frequency * TAU
+	var breath := sin(_body_motion_time * 2.2) * idle_breath_height
+	var bob := sin(gait_phase) * movement_bob_height * movement_ratio
+	var sway := cos(gait_phase * 0.5) * movement_sway_degrees * movement_ratio
+	var target_position := _body_base_position + Vector3(0.0, breath + bob, 0.0) + _body_attack_offset
+	var target_rotation := _body_base_rotation_degrees + Vector3(sin(gait_phase) * movement_sway_degrees * 0.35 * movement_ratio, sway, cos(gait_phase) * movement_sway_degrees * 0.25 * movement_ratio) + _body_attack_rotation_offset
+	_body_asset.position = _body_asset.position.lerp(target_position, clampf(delta * 12.0, 0.0, 1.0))
+	_body_asset.rotation_degrees = _body_asset.rotation_degrees.lerp(target_rotation, clampf(delta * 12.0, 0.0, 1.0))
+	if _chainsaw_asset:
+		_chainsaw_asset.rotation_degrees = chainsaw_rotation_degrees + _chainsaw_attack_offset
 
 func _try_add_replacement_body() -> void:
 	var killer_visuals := Node3D.new()
@@ -200,6 +258,8 @@ func _try_add_replacement_body() -> void:
 		_body_asset.scale = Vector3.ONE * replacement_body_scale
 		_body_asset.position.y = 0.15
 		killer_visuals.add_child(_body_asset)
+		_body_base_position = _body_asset.position
+		_body_base_rotation_degrees = _body_asset.rotation_degrees
 	else:
 		push_warning("Victor Gideon GLB could not be loaded from res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.glb")
 
