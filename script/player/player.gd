@@ -74,6 +74,8 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventScreenTouch:
+		if event.pressed and _is_touch_over_hud(event.position):
+			return
 		if event.position.x > get_viewport().get_visible_rect().size.x * 0.50:
 			if event.pressed and touch_look_index == -1:
 				touch_look_index = event.index
@@ -81,6 +83,8 @@ func _input(event: InputEvent) -> void:
 			elif not event.pressed and event.index == touch_look_index:
 				touch_look_index = -1
 	elif event is InputEventScreenDrag and event.index == touch_look_index:
+			if _is_touch_over_hud(event.position):
+				return
 			_apply_look((event.position - last_touch_look_position) * TOUCH_LOOK_SENSITIVITY / sensitivity)
 			last_touch_look_position = event.position
 
@@ -242,10 +246,14 @@ func _create_mobile_hud() -> void:
 	_health_bar.max_value = max_health
 	_health_bar.value = health
 	_health_bar.show_percentage = false
+	_health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_health_bar.z_index = 10
 	$CanvasLayer.add_child(_health_bar)
 	_health_label = Label.new()
 	_health_label.position = Vector2(26, 49)
 	_health_label.text = "HEALTH 100"
+	_health_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_health_label.z_index = 11
 	_health_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.86))
 	$CanvasLayer.add_child(_health_label)
 	_interact_button = _make_button("INTERACT", Vector2(-205, -360), Vector2(180, 70))
@@ -335,7 +343,14 @@ func _create_minimap() -> void:
 	map.anchor_right = 1.0
 	map.anchor_bottom = 1.0
 	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map.z_index = 10
 	$CanvasLayer.add_child(map)
+
+func _is_touch_over_hud(position: Vector2) -> bool:
+	var viewport_size := get_viewport().get_visible_rect().size
+	var minimap_rect := Rect2(viewport_size.x - 198.0, viewport_size.y - 198.0, 180.0, 180.0)
+	var action_rect := Rect2(viewport_size.x - 205.0, viewport_size.y - 360.0, 180.0, 150.0)
+	return minimap_rect.has_point(position) or action_rect.has_point(position)
 
 func _process(_delta: float) -> void:
 	if _minimap_camera:
