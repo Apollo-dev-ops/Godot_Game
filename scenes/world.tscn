@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://c3hcwrq4gs03t" path="res://scenes/item_list.tscn" id="7_4mrxx"]
 [ext_resource type="PackedScene" uid="uid://bvrfbfh5lh5qv" path="res://scenes/enemy.tscn" id="7_7r4gi"]
 [ext_resource type="PackedScene" uid="uid://cda61aij20use" path="res://scenes/abandoned_house.scn" id="7_i7141"]
+[ext_resource type="Script" path="res://script/house_interactions.gd" id="8_house_interactions"]
 
 [sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_71j4m"]
 panorama = ExtResource("1_71j4m")
@@ -80,6 +81,9 @@ navigation_mesh = SubResource("NavigationMesh_w7kh3")
 
 [node name="Abandoned_House" parent="NavigationRegion3D" unique_id=1887762829 instance=ExtResource("7_i7141")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42.090534, 2.0270157, 96.78203)
+
+[node name="HouseInteractions" type="Node" parent="NavigationRegion3D/Abandoned_House"]
+script = ExtResource("8_house_interactions")
 
 [node name="map" type="Node3D" parent="NavigationRegion3D" unique_id=1812564313]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -93.71003, 0)

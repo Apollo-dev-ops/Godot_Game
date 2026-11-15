@@ -55,9 +55,11 @@ var random := RandomNumberGenerator.new()
 @export var chainsaw_damage := 12.0
 @export var attack_range := 1.8
 @export var attack_cooldown := 1.0
-@export var replacement_body_scale := 0.025
-@export var chainsaw_scale := 0.05
-@export var chainsaw_position := Vector3(0.55, 1.05, 0.25)
+@export_file("*.fbx", "*.glb") var replacement_body_path := "res://assets/models/enemy/uploaded/SkeletonzombieTAvelange.fbx"
+@export var fallback_body_path := "res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.glb"
+@export var replacement_body_scale := 4.5
+@export var chainsaw_scale := 0.022
+@export var chainsaw_position := Vector3(0.0, 0.02, -0.28)
 @export var chainsaw_rotation_degrees := Vector3(0.0, 0.0, -90.0)
 
 @export_group("Procedural Killer Motion")
@@ -80,6 +82,7 @@ var dead := false
 var _health_bar: ProgressBar
 var _body_asset: Node3D
 var _chainsaw_asset: Node3D
+var _chainsaw_mount: Node3D
 var _attack_animation_index := 1
 var _body_base_position := Vector3.ZERO
 var _body_base_rotation_degrees := Vector3.ZERO
@@ -249,22 +252,25 @@ func _try_add_replacement_body() -> void:
 	var killer_visuals := Node3D.new()
 	killer_visuals.name = "KillerReplacementVisuals"
 	add_child(killer_visuals)
-	for legacy_path in ["Skeleton3D/body2_model0_smd", "Skeleton3D/full"]:
-		var legacy_mesh := get_node_or_null(legacy_path) as VisualInstance3D
-		if legacy_mesh:
-			legacy_mesh.visible = false
-	var body_scene := load("res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.glb") as PackedScene
+	var body_scene := load(replacement_body_path) as PackedScene
+	if body_scene == null:
+		body_scene = load(fallback_body_path) as PackedScene
 	if body_scene:
 		_body_asset = body_scene.instantiate() as Node3D
-		_body_asset.name = "VictorGideonBody"
+		_body_asset.name = "KillerReplacementBody"
 		_body_asset.scale = Vector3.ONE * replacement_body_scale
-		_body_asset.position.y = 0.15
+		_body_asset.position.y = 0.0
 		killer_visuals.add_child(_body_asset)
 		_set_visual_layer(_body_asset, KILLER_MINIMAP_HIDDEN_LAYER)
 		_body_base_position = _body_asset.position
 		_body_base_rotation_degrees = _body_asset.rotation_degrees
+		for legacy_path in ["Skeleton3D/body2_model0_smd", "Skeleton3D/full"]:
+			var legacy_mesh := get_node_or_null(legacy_path) as VisualInstance3D
+			if legacy_mesh:
+				legacy_mesh.visible = false
 	else:
-		push_warning("Victor Gideon GLB could not be loaded from res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.glb")
+		push_warning("No replacement killer body could be loaded; keeping the original enemy body visible")
+		return
 
 	var chainsaw_scene := load("res://assets/models/enemy/chainsaw/scene.gltf") as PackedScene
 	if chainsaw_scene:
@@ -273,10 +279,21 @@ func _try_add_replacement_body() -> void:
 		_chainsaw_asset.position = chainsaw_position
 		_chainsaw_asset.rotation_degrees = chainsaw_rotation_degrees
 		_chainsaw_asset.scale = Vector3.ONE * chainsaw_scale
-		killer_visuals.add_child(_chainsaw_asset)
+		_chainsaw_mount = _find_right_hand_mount(_body_asset)
+		(_chainsaw_mount if _chainsaw_mount else killer_visuals).add_child(_chainsaw_asset)
 		_set_visual_layer(_chainsaw_asset, KILLER_MINIMAP_HIDDEN_LAYER)
 	else:
 		push_warning("Chainsaw glTF could not be loaded from res://assets/models/enemy/chainsaw/scene.gltf")
+
+func _find_right_hand_mount(body: Node3D) -> Node3D:
+	var skeleton := body.get_node_or_null("Skeleton3D") as Skeleton3D
+	if skeleton == null or skeleton.find_bone("mixamorig_RightHand") < 0:
+		return body
+	var attachment := BoneAttachment3D.new()
+	attachment.name = "ChainsawRightHandAttachment"
+	attachment.bone_name = "mixamorig_RightHand"
+	skeleton.add_child(attachment)
+	return attachment
 
 func _set_visual_layer(node: Node, layer: int) -> void:
 	if node is VisualInstance3D:

@@ -115,7 +115,9 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("attack"):
 		_attack_enemy()
 	var input_dir := Input.get_vector("left", "right", "forward", "back")
-	var direction := (global_transform.basis * Vector3(input_dir.x, 0.0, -input_dir.y)).normalized()
+	# Input.get_vector returns a negative Y value for the forward action.
+	# Do not negate it again: the camera/player forward direction is -Z.
+	var direction := (global_transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()
 	if direction.length_squared() > 0.001:
 		_play_movement_animation()
 		visuals.look_at(global_position + direction, Vector3.UP)
@@ -181,6 +183,7 @@ func _handle_interaction() -> void:
 		key_text.hide()
 		_interact_button.visible = false
 	if Input.is_action_just_pressed("interact") and _interaction_target:
+		_play_animation(&"ual_interact")
 		_interaction_target.interact()
 
 func _attack_enemy() -> void:
@@ -305,6 +308,7 @@ func _toggle_flashlight() -> void:
 
 func _on_interact_pressed() -> void:
 	if _interaction_target and is_instance_valid(_interaction_target):
+		_play_animation(&"ual_interact")
 		_interaction_target.interact()
 
 func _cycle_difficulty() -> void:
