@@ -4,3 +4,7 @@
 .docs
 /env
 .env
+
+# Local Android build artifacts; source and assets remain tracked.
+*.apk
+*.idsig
