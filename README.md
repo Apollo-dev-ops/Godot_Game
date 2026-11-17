@@ -5,7 +5,7 @@
 ![Renderer](https://img.shields.io/badge/Renderer-OpenGL%20Compatibility-222222?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Desktop%20%7C%20Android-2E7D32?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-In%20Development-B8860B?style=for-the-badge)
-![Version](https://img.shields.io/badge/Version-v0.1.23-1565C0?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-v0.1.24-1565C0?style=for-the-badge)
 
 A first-person 3D horror exploration game built with **Godot Engine 4.5**. Explore an abandoned house, collect items, move through dark rooms, and survive a tense atmosphere inspired by slow-paced horror games like **Granny**.
 
@@ -61,7 +61,7 @@ Cabinet doors now swing on their hinges, and the detected drawer boxes slide out
 
 | Item | Version / Status |
 |---|---|
-| Project version | v0.1.23 |
+| Project version | v0.1.24 |
 | Project status | In development |
 | Godot version | Godot Engine 4.5 |
 | Language | GDScript |
