@@ -8,6 +8,7 @@ enum EnemyState {
 }
 
 const KILLER_MINIMAP_HIDDEN_LAYER := 4
+const ZOMBIE_ANIM_PATH := "res://assets/animations/enemy/zombie_animations.tres"
 
 @export_group("References")
 @export var player_path: NodePath
@@ -17,7 +18,7 @@ const KILLER_MINIMAP_HIDDEN_LAYER := 4
 @export var chasing_speed := 2.2
 @export var turn_speed := 8.0
 @export var arrival_distance := 0.8
-@export var model_faces_positive_z := false
+@export var model_faces_positive_z := true
 
 @export_group("Patrol")
 @export var patrol_wait_time := 1.5
@@ -57,13 +58,13 @@ var random := RandomNumberGenerator.new()
 @export var attack_cooldown := 1.0
 @export_file("*.fbx", "*.glb") var replacement_body_path := "res://assets/models/enemy/uploaded/SkeletonzombieTAvelange.fbx"
 @export var fallback_body_path := "res://assets/models/enemy/victor_gideon_in_resident_evil_requiem_mutated.glb"
-@export var replacement_body_scale := 4.5
-@export var chainsaw_scale := 0.022
-@export var chainsaw_position := Vector3(0.0, 0.02, -0.28)
+@export var replacement_body_scale := 1.0
+@export var chainsaw_scale := 0.025
+@export var chainsaw_position := Vector3(0.03, 0.03, -0.08)
 @export var chainsaw_rotation_degrees := Vector3(0.0, 0.0, -90.0)
 
 @export_group("Procedural Killer Motion")
-@export var procedural_motion_enabled := true
+@export var procedural_motion_enabled := false
 @export var idle_breath_height := 0.012
 @export var movement_bob_height := 0.035
 @export var movement_sway_degrees := 2.0
@@ -92,6 +93,10 @@ var _body_attack_rotation_offset := Vector3.ZERO
 var _chainsaw_attack_offset := Vector3.ZERO
 var _body_attack_tween: Tween
 var _chainsaw_attack_tween: Tween
+var _body_anim_player: AnimationPlayer
+var _body_anim_current := ""
+var _body_attacking := false
+var _body_attack_generation := 0
 
 
 
@@ -126,6 +131,7 @@ func _physics_process(delta: float) -> void:
 	attack_timer = maxf(0.0, attack_timer - delta)
 	_apply_gravity(delta)
 	if _try_attack_player():
+		_update_body_locomotion_animation()
 		return
 
 	_update_player_detection(delta)
@@ -139,6 +145,7 @@ func _physics_process(delta: float) -> void:
 			_update_search(delta)
 
 	move_and_slide()
+	_update_body_locomotion_animation()
 
 
 func _try_attack_player() -> bool:
@@ -178,57 +185,66 @@ func _die() -> void:
 	navigation_agent.target_position = global_position
 	if _health_bar:
 		_health_bar.visible = false
+	_play_body_animation("death", 0.15)
 	if player and player.has_method("enemy_defeated"):
 		player.enemy_defeated()
 
 func _play_attack_animation() -> void:
-	_play_procedural_attack_motion()
-	if imported_animation_player == null:
+	if _body_anim_player == null:
 		return
-	var animation_name := StringName("_Attack %d" % _attack_animation_index)
-	_attack_animation_index = (_attack_animation_index % 5) + 1
-	if not imported_animation_player.has_animation(animation_name):
-		_play_chainsaw_swing()
-		return
-	animation_tree.active = false
-	imported_animation_player.play(animation_name)
-	_play_chainsaw_swing()
-	get_tree().create_timer(0.8).timeout.connect(_resume_locomotion_animation)
+	_body_attacking = true
+	_body_attack_generation += 1
+	var generation := _body_attack_generation
+	_play_body_animation("attack", 0.12)
+	var length := 1.2
+	if _body_anim_player.has_animation("attack"):
+		length = _body_anim_player.get_animation("attack").length
+	get_tree().create_timer(maxf(length - 0.12, 0.4)).timeout.connect(
+		_finish_body_attack.bind(generation)
+	)
 
-func _play_chainsaw_swing() -> void:
-	if _chainsaw_asset == null:
-		return
-	if _chainsaw_attack_tween and _chainsaw_attack_tween.is_valid():
-		_chainsaw_attack_tween.kill()
-	_chainsaw_attack_offset = Vector3.ZERO
-	_chainsaw_attack_tween = create_tween()
-	_chainsaw_attack_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	_chainsaw_attack_tween.tween_property(self, "_chainsaw_attack_offset", Vector3(-52.0, 0.0, 24.0), 0.14)
-	_chainsaw_attack_tween.tween_property(self, "_chainsaw_attack_offset", Vector3(38.0, 0.0, -30.0), 0.16)
-	_chainsaw_attack_tween.tween_property(self, "_chainsaw_attack_offset", Vector3.ZERO, 0.28)
+func _finish_body_attack(generation: int) -> void:
+	if generation == _body_attack_generation and not dead:
+		_body_attacking = false
 
-func _resume_locomotion_animation() -> void:
-	if not dead and is_instance_valid(animation_tree):
-		animation_tree.active = true
-
-func _play_procedural_attack_motion() -> void:
-	if not procedural_motion_enabled or _body_asset == null:
+func _setup_body_animation() -> void:
+	var library := load(ZOMBIE_ANIM_PATH) as AnimationLibrary
+	if library == null:
+		push_warning("Retargeted zombie animations could not be loaded: " + ZOMBIE_ANIM_PATH)
 		return
-	if _body_attack_tween and _body_attack_tween.is_valid():
-		_body_attack_tween.kill()
-	_body_attack_offset = Vector3.ZERO
-	_body_attack_rotation_offset = Vector3.ZERO
-	_body_attack_tween = create_tween()
-	_body_attack_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_body_attack_tween.set_parallel(true)
-	_body_attack_tween.tween_property(self, "_body_attack_offset", Vector3(0.0, 0.025, -attack_lunge_distance), 0.14)
-	_body_attack_tween.tween_property(self, "_body_attack_rotation_offset", Vector3(-9.0, -12.0, 14.0), 0.14)
-	_body_attack_tween.chain().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	_body_attack_tween.tween_property(self, "_body_attack_offset", Vector3(0.0, 0.0, 0.035), 0.16)
-	_body_attack_tween.tween_property(self, "_body_attack_rotation_offset", Vector3(18.0, 14.0, -20.0), 0.16)
-	_body_attack_tween.chain().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	_body_attack_tween.tween_property(self, "_body_attack_offset", Vector3.ZERO, 0.30)
-	_body_attack_tween.tween_property(self, "_body_attack_rotation_offset", Vector3.ZERO, 0.30)
+	_body_anim_player = AnimationPlayer.new()
+	_body_anim_player.name = "BodyAnimationPlayer"
+	_body_asset.add_child(_body_anim_player)
+	_body_anim_player.add_animation_library("", library)
+	_body_anim_player.playback_default_blend_time = 0.25
+	_play_body_animation("idle", 0.0)
+
+func _play_body_animation(animation_name: StringName, blend := 0.25, speed := 1.0) -> void:
+	if _body_anim_player == null or not _body_anim_player.has_animation(animation_name):
+		return
+	_body_anim_player.speed_scale = speed
+	if _body_anim_current == animation_name and _body_anim_player.is_playing():
+		return
+	_body_anim_current = animation_name
+	_body_anim_player.play(animation_name, blend)
+
+func _update_body_locomotion_animation() -> void:
+	if _body_anim_player == null or _body_attacking or dead:
+		return
+	var speed := Vector2(velocity.x, velocity.z).length()
+	var animation_name: StringName = &"idle"
+	var playback := 1.0
+	if speed > 0.12:
+		if speed > 2.6:
+			animation_name = &"sprint"
+			playback = clampf(speed / 3.6, 0.85, 1.35)
+		elif speed > 1.7:
+			animation_name = &"jog"
+			playback = clampf(speed / 2.4, 0.8, 1.35)
+		else:
+			animation_name = &"walk"
+			playback = clampf(speed / 1.35, 0.7, 1.4)
+	_play_body_animation(animation_name, 0.25, playback)
 
 func _update_procedural_body_motion(delta: float) -> void:
 	if not procedural_motion_enabled or _body_asset == null:
@@ -245,8 +261,6 @@ func _update_procedural_body_motion(delta: float) -> void:
 	var target_rotation := _body_base_rotation_degrees + Vector3(sin(gait_phase) * movement_sway_degrees * 0.35 * movement_ratio, sway, cos(gait_phase) * movement_sway_degrees * 0.25 * movement_ratio) + _body_attack_rotation_offset
 	_body_asset.position = _body_asset.position.lerp(target_position, clampf(delta * 12.0, 0.0, 1.0))
 	_body_asset.rotation_degrees = _body_asset.rotation_degrees.lerp(target_rotation, clampf(delta * 12.0, 0.0, 1.0))
-	if _chainsaw_asset:
-		_chainsaw_asset.rotation_degrees = chainsaw_rotation_degrees + _chainsaw_attack_offset
 
 func _try_add_replacement_body() -> void:
 	var killer_visuals := Node3D.new()
@@ -264,6 +278,7 @@ func _try_add_replacement_body() -> void:
 		_set_visual_layer(_body_asset, KILLER_MINIMAP_HIDDEN_LAYER)
 		_body_base_position = _body_asset.position
 		_body_base_rotation_degrees = _body_asset.rotation_degrees
+		_setup_body_animation()
 		for legacy_path in ["Skeleton3D/body2_model0_smd", "Skeleton3D/full"]:
 			var legacy_mesh := get_node_or_null(legacy_path) as VisualInstance3D
 			if legacy_mesh:
@@ -281,6 +296,13 @@ func _try_add_replacement_body() -> void:
 		_chainsaw_asset.scale = Vector3.ONE * chainsaw_scale
 		_chainsaw_mount = _find_right_hand_mount(_body_asset)
 		(_chainsaw_mount if _chainsaw_mount else killer_visuals).add_child(_chainsaw_asset)
+		# The asset ships a bloody and a clean duplicate plus physics-bone
+		# simulators; keep one prop and let the hand drive it.
+		var clean_variant := _chainsaw_asset.find_child("Armature_2", true, false)
+		if clean_variant:
+			clean_variant.visible = false
+		for simulator in _chainsaw_asset.find_children("*", "PhysicalBoneSimulator3D", true, false):
+			simulator.active = false
 		_set_visual_layer(_chainsaw_asset, KILLER_MINIMAP_HIDDEN_LAYER)
 	else:
 		push_warning("Chainsaw glTF could not be loaded from res://assets/models/enemy/chainsaw/scene.gltf")
@@ -477,9 +499,6 @@ func _turn_toward_direction(direction: Vector3, delta: float) -> void:
 		else atan2(-direction.x, -direction.z)
 	)
 	rotation.y = lerp_angle(rotation.y, target_yaw, turn_speed * delta)
-
-	# Keep the model's existing sideways correction from this project.
-	rotation_degrees.z = -11.0
 
 
 func _stop_horizontal_movement() -> void:

@@ -9683,8 +9683,8 @@ _data = {
 }
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_8qclf"]
-radius = 1.2192383
-height = 9.089725
+radius = 0.35
+height = 1.8
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_w8i8w"]
 animation = &"_walk"
@@ -9768,7 +9768,6 @@ walking_speed = null
 chasing_speed = null
 turn_speed = null
 arrival_distance = null
-model_faces_positive_z = null
 patrol_wait_time = null
 vision_distance = null
 vision_angle_degrees = null
@@ -10272,16 +10271,15 @@ skin = SubResource("Skin_v2sbl")
 libraries/ = SubResource("AnimationLibrary_0jcu5")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=13301342]
-transform = Transform3D(0.9835632, -0.18056424, 0, 0.18056424, 0.9835632, 0, 0, 0, 1, 0.6256365, -1.2139903, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_8qclf")
-
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="." unique_id=390592302]
 path_desired_distance = 0.3
 target_desired_distance = 0.8
-path_height_offset = -0.65
+path_height_offset = 0.0
 navigation_layers = 15
-height = 1.6
-radius = 0.25
+height = 1.8
+radius = 0.35
 
 [node name="AnimationTree" type="AnimationTree" parent="." unique_id=1614769424]
 tree_root = SubResource("AnimationNodeStateMachine_wtq4b")

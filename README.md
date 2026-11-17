@@ -25,6 +25,15 @@ The project focuses on first-person exploration, item interaction, mobile contro
 - **Mobile-ready input** using a virtual joystick addon.
 - **Animated player character** using a Mixamo rig and animation player.
 - **AZERTY/QWERTY-friendly controls** configured in Godot input actions.
+- **Bounded island map** with solidified neighborhood ground, an ocean coastline and a collision barrier that keeps the player out of the water.
+
+---
+## Mobile Controls
+The touch layout follows a Call of Duty Mobile-style arrangement. A fixed joystick on the bottom-left moves the player, and a fixed joystick on the bottom-right turns and looks. Along the upper edge of the right joystick are three icon buttons: sprint (tap to toggle), flashlight (tap to toggle), and stance (tap once to crouch, twice to lie prone, three times to stand). The attack and interact buttons sit to the left of the right joystick, and the minimap is in the top-right corner.
+
+Doors in the house use the animated door model and open/close when the interact button is tapped.
+
+Cabinet doors now swing on their hinges, and the detected drawer boxes slide outward smoothly when interacted with. Storage yields a rotating selection of scrap, bandages, and first-aid kits. Loose scrap and a bandage are also placed on the floor. Open the inventory with its bag button on mobile or the Inventory key on desktop, then tap/click a healing item to use it. A bandage restores up to 25 health; a first-aid kit restores up to 60. Items are not consumed when health is already full, and healing never exceeds maximum health. Duplicate items stack in the inventory.
 
 ---
 

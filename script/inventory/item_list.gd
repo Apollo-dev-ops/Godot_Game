@@ -4,25 +4,26 @@ const SLOT_COUNT := 12
 const SLOT_SIZE := Vector2(112, 92)
 
 @onready var grid: GridContainer = $Root/InventoryPanel/Margin/VBox/Grid
-
+var _last_slot_activation_msec: Dictionary = {}
 
 func _ready() -> void:
+	add_to_group("inventory_ui")
 	hide()
 	Inventory.changed.connect(update_inventory)
 	update_inventory()
 
-
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("Inventory"):
-		visible = !visible
-		if visible:
-			update_inventory()
+		toggle_inventory()
 
+func toggle_inventory() -> void:
+	visible = not visible
+	if visible:
+		update_inventory()
 
 func update_inventory() -> void:
 	for child in grid.get_children():
 		child.queue_free()
-
 	var visible_slots: int = max(SLOT_COUNT, Inventory.items.size())
 	for index in range(visible_slots):
 		if index < Inventory.items.size():
@@ -30,42 +31,64 @@ func update_inventory() -> void:
 		else:
 			grid.add_child(_create_empty_slot())
 
-
 func _create_item_slot(item: Dictionary) -> PanelContainer:
 	var slot := _create_slot_panel(Color(0.11, 0.09, 0.065, 0.94), Color(0.74, 0.53, 0.25, 0.95))
-
+	var item_id := str(item.get("name", ""))
+	var consumable := Inventory.is_consumable(item_id)
+	slot.mouse_filter = Control.MOUSE_FILTER_STOP if consumable else Control.MOUSE_FILTER_IGNORE
 	var margin := MarginContainer.new()
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margin.add_theme_constant_override("margin_left", 8)
 	margin.add_theme_constant_override("margin_top", 8)
 	margin.add_theme_constant_override("margin_right", 8)
 	margin.add_theme_constant_override("margin_bottom", 8)
 	slot.add_child(margin)
-
 	var content := VBoxContainer.new()
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
-	content.add_theme_constant_override("separation", 6)
+	content.add_theme_constant_override("separation", 4 if consumable else 6)
 	margin.add_child(content)
-
 	var icon := TextureRect.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon.texture = item.get("icon")
-	icon.custom_minimum_size = Vector2(46, 46)
+	icon.custom_minimum_size = Vector2(40, 40) if consumable else Vector2(46, 46)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	content.add_child(icon)
-
 	var label := Label.new()
-	label.text = str(item.get("name", "Item")).capitalize()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var quantity := int(item.get("quantity", 1))
+	label.text = str(item.get("display_name", str(item.get("name", "Item")).replace("_", " ").capitalize()))
+	if quantity > 1:
+		label.text += " x%d" % quantity
+	if consumable:
+		label.text += "\nTAP TO USE"
+		label.add_theme_font_size_override("font_size", 10)
+		slot.tooltip_text = "Use to restore up to %d health; unavailable at full health" % int(Inventory.CONSUMABLES[item_id]["heal"])
+		slot.gui_input.connect(_on_item_slot_gui_input.bind(item_id))
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.modulate = Color(0.92, 0.84, 0.68, 1)
 	content.add_child(label)
-
 	return slot
 
+func _on_item_slot_gui_input(event: InputEvent, item_id: String) -> void:
+	var pressed := false
+	if event is InputEventMouseButton:
+		pressed = event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	elif event is InputEventScreenTouch:
+		pressed = event.pressed
+	if not pressed:
+		return
+	var now := Time.get_ticks_msec()
+	if _last_slot_activation_msec.has(item_id) and now - int(_last_slot_activation_msec[item_id]) < 180:
+		return
+	_last_slot_activation_msec[item_id] = now
+	get_viewport().set_input_as_handled()
+	Inventory.use_item(item_id)
 
 func _create_empty_slot() -> PanelContainer:
 	return _create_slot_panel(Color(0.055, 0.052, 0.047, 0.72), Color(0.22, 0.19, 0.15, 0.75))
-
 
 func _create_slot_panel(background: Color, border: Color) -> PanelContainer:
 	var slot := PanelContainer.new()
@@ -74,7 +97,6 @@ func _create_slot_panel(background: Color, border: Color) -> PanelContainer:
 	slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	slot.add_theme_stylebox_override("panel", _create_slot_style(background, border))
 	return slot
-
 
 func _create_slot_style(background: Color, border: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()

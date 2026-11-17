@@ -3,19 +3,47 @@
 [ext_resource type="PackedScene" uid="uid://dmr0fcamx7t56" path="res://addons/virtual_joystick/virtual_joystick_scene.tscn" id="1_j3kvq"]
 
 [node name="TouchControllers" type="CanvasLayer"]
+layer = 2
 
-[node name="Virtual Joystick" parent="." instance=ExtResource("1_j3kvq")]
-offset_top = -390.0
-offset_right = 520.0
-offset_bottom = -12.0
-scale = Vector2(1, 1)
-pressed_color = Color(0.7472141, 0.7045988, 0.9666229, 1)
-joystick_mode = 1
-visibility_mode = 2
-appear_under_finger = true
-deadzone_size = 12.0
-clampzone_size = 100.0
+[node name="MoveJoystick" parent="." instance=ExtResource("1_j3kvq")]
+modulate = Color(1, 1, 1, 0.8)
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 0.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = -244.0
+offset_right = 244.0
+offset_bottom = -24.0
+grow_horizontal = 1
+grow_vertical = 0
+pressed_color = Color(0.75, 0.7, 0.97, 1)
+joystick_mode = 0
+visibility_mode = 0
+appear_under_finger = false
+deadzone_size = 8.0
+clampzone_size = 80.0
 action_left = "left"
 action_right = "right"
 action_up = "forward"
 action_down = "back"
+
+[node name="LookJoystick" parent="." instance=ExtResource("1_j3kvq")]
+modulate = Color(1, 1, 1, 0.8)
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -244.0
+offset_top = -244.0
+offset_right = -24.0
+offset_bottom = -24.0
+grow_horizontal = 0
+grow_vertical = 0
+pressed_color = Color(0.75, 0.7, 0.97, 1)
+joystick_mode = 0
+visibility_mode = 0
+appear_under_finger = false
+deadzone_size = 8.0
+clampzone_size = 80.0
+use_input_actions = false
